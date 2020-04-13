@@ -1,14 +1,16 @@
 from socket import *
 import json
 
-with open('config.json', 'r') as file:
-    config = json.load(file)
+# with open('../config.json', 'r') as file:
+#     config = json.load(file)
 
-commandPort = config['commandChannelPort']
+# commandPort = config['commandChannelPort']
+commandPort = 8000
 commandSocket = socket(AF_INET, SOCK_STREAM)
 commandSocket.connect(('127.0.0.1',commandPort))
 
-dataPort = config['dataChannelPort']
+# dataPort = config['dataChannelPort']
+dataPort = 8001
 dataSocket = socket(AF_INET, SOCK_STREAM)
 dataSocket.connect(('127.0.0.1',dataPort))
 
@@ -16,7 +18,6 @@ while True:
     buffer = input().split()
     command = buffer[0]
     data = "@"
-    print(command)
 
     ## command channel responses ##
     if (command == "USER" or command == "PASS" or
@@ -30,13 +31,28 @@ while True:
         print(commandResponse)
 
     ## data channel responses ##
-    elif(command == "DL" or command == "LIST"):
+    elif(command == "LIST"):
         if(len(buffer) == 2):
             data = buffer[1]
         commandSocket.send(command.encode('utf-8'))
         dataSocket.send(data.encode('utf-8'))
-        dataResponse = commandSocket.recv(10000).decode('utf-8')
-        print(dataResponse)
+        dataResponse = dataSocket.recv(10000).decode('utf-8')
+        commandResponse = commandSocket.recv(10000).decode('utf-8')
+        print(commandResponse)
+        if(dataResponse != "@" and data == "@"):
+            print(dataResponse)
+    elif(command == "DL"):
+        if(len(buffer) == 2):
+            data = buffer[1]
+        commandSocket.send(command.encode('utf-8'))
+        dataSocket.send(data.encode('utf-8'))
+        dataResponse = dataSocket.recv(10000)
+        if(dataResponse != "@" and data != "@"):
+            file = open(data, 'wb')
+            file.write(dataResponse)
+            file.close()
+        commandResponse = commandSocket.recv(10000).decode('utf-8')
+        print(commandResponse)
 
     ## commands with flag ##
     elif(command == "MKD" or command == "RMD"):
@@ -53,9 +69,7 @@ while True:
     ## invalid commands ##    
     else:
         commandSocket.send(command.encode('utf-8'))
-        print("2")
         dataSocket.send(data.encode('utf-8'))
-        print("1")
         commandResponse = commandSocket.recv(10000).decode('utf-8')
         print(commandResponse)
 
