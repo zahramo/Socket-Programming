@@ -3,14 +3,88 @@ import json
 import _thread
 import os
 import shutil
+from datetime import datetime
 
 ###----function definitions----###
+
+def createLogFile():
+    logging = config['logging']
+    if(logging['enable'] == True):
+        file = open(logging['path'], 'a+')
+        file.close()
+        return logging['path']
+    return ''
+
+def isUserAdmin(username):
+    authorization = config['authorization']
+    if(authorization['enable']):
+        for user in authorization['admins']:
+            if(user == username):
+                return True
+        return False
+    else:
+        return True
+
+def isFilePrivate(filename):
+    authorization = config['authorization']
+    for name in authorization['files']:
+        if(name == filename):
+            return True
+    return False
+
+def log(msg):
+    if(logFile != ''):
+        now = datetime.now()
+        dt_string = now.strftime("%B %d, %Y %H:%M:%S")
+        file = open(logFile, 'a')
+        file.write(msg + dt_string)
+        file.close()
+
+def doesUserNameExist(username):
+    for user in config['users']:
+        if(user['user'] == username):
+            return True
+    return False    
+
+def isPasswordCorrect(username, password):
+    for user in config['users']:
+        if(user['user'] == username and user['password'] == password):
+            return True
+    return False
+
+def getDownloadStatus(fileName, username):
+    size = os.path.getsize(fileName)
+    accounting = config['accounting']
+    for user in accounting['users']:
+        if(user['user'] == username):
+            userSize = int(user['size'])
+            if(userSize < size):
+                return False
+            userSize -= size
+            user['size'] = str(userSize)
+            configFile = open("config.json", "w")
+            json.dump(config, configFile)
+            configFile.close()
+            return True
+
+def handleMail(username):
+    accounting = config['accounting']
+    threshold = int(accounting['threshold'])
+    for user in accounting['users']:
+        if(user['user'] == username):
+            userSize = int(user['size'])
+            # if(userSize < threshold):
+                # sendEmail(user['email'])
+
+
+
 def serveClient(commandSocket, dataSocket):
     userLoggedIn = False
+    userName = ''
+    passWord = ''
     while True:
         command = commandSocket.recv(10000).decode('utf-8')
         data = dataSocket.recv(10000).decode('utf-8')
-
         print(command, data)
 
         if(checkCommandValidation(command, data) == False):
@@ -21,17 +95,26 @@ def serveClient(commandSocket, dataSocket):
 
         if(command == "USER"):
             username = data
-            commandSocket.send("331 User name okay, need password.".encode('utf-8'))
-            if(commandSocket.recv(10000).decode('utf-8') == "PASS"):
-                password = dataSocket.recv(10000).decode('utf-8')
-                for user in config['users']:
-                    if(user['user'] == username and user['password'] == password):
-                        userLoggedIn = True
-                        commandSocket.send("230 User logged in, proceed.".encode('utf-8'))
-                        break
-                if(userLoggedIn == False):
-                    commandSocket.send("430 Invalid username or password.".encode('utf-8'))
+
+            if(not doesUserNameExist(username)):
+                commandSocket.send("430 Invalid username or password.".encode('utf-8'))
                 continue
+
+            commandSocket.send("331 User name okay, need password.".encode('utf-8'))
+            userName = username
+            command = commandSocket.recv(10000).decode('utf-8')
+            if(command == "PASS"):
+                password = dataSocket.recv(10000).decode('utf-8')
+                if(not isPasswordCorrect(username, password)):
+                    commandSocket.send("430 Invalid username or password.".encode('utf-8'))
+                    continue
+                userLoggedIn = True
+                passWord = password
+                isAdmin = isUserAdmin(userName)
+                log(userName + " entered the system at ")
+                commandSocket.send("230 User logged in, proceed.".encode('utf-8'))
+                continue
+
         if(command == "PASS"):
             commandSocket.send("503 Bad sequence of commands.".encode('utf-8'))
             continue
@@ -49,6 +132,7 @@ def serveClient(commandSocket, dataSocket):
 
         if(userLoggedIn == False):
             commandSocket.send("332 Need account for login.".encode('utf-8'))
+            dataSocket.send("@".encode('utf-8'))
             continue
         else:
             if(command == "PWD"):
@@ -59,7 +143,8 @@ def serveClient(commandSocket, dataSocket):
                     commandSocket.send(("500 Error.").encode('utf-8'))
                 else:                    
                     os.mkdir(data)
-                    commandSocket.send(("257 " + os.getcwd() + "\\" + data + " created.").encode('utf-8'))
+                    log(userName + " made " + os.getcwd() + "/" + data + " directory at ")
+                    commandSocket.send(("257 " + os.getcwd() + "/" + data + " created.").encode('utf-8'))
 
             elif(command == "MKD-i"):
                 if(os.path.isfile(data)):
@@ -67,21 +152,27 @@ def serveClient(commandSocket, dataSocket):
                 else:                     
                     file = open(data, 'w')
                     file.close()
-                    commandSocket.send(("257 " + os.getcwd() + "\\" + data + " created.").encode('utf-8'))
+                    log(userName + " made " + data + " file at ")
+                    commandSocket.send(("257 " + data + " created.").encode('utf-8'))
 
             elif(command == "RMD"):
+                if(os.path.isfile(data) == False):
+                    commandSocket.send(("500 Error.").encode('utf-8'))
+                else:       
+                    if(not isAdmin):
+                        if(isFilePrivate(data)):
+                            commandSocket.send(("550 File unavailable.").encode('utf-8'))
+                            continue
+                    os.remove(data)
+                    log(userName + " deleted " + data + " file at ")
+                    commandSocket.send(("257 " + data + " deleted.").encode('utf-8'))
+            elif(command == "RMD-f"):
                 if(os.path.isdir(data) == False):
                     commandSocket.send(("500 Error.").encode('utf-8'))
                 else:                 
                     shutil.rmtree(data)
-                    commandSocket.send(("250 " + os.getcwd() + "\\" + data + " deleted.").encode('utf-8'))
-
-            elif(command == "RMD-f"):
-                if(os.path.isfile(data) == False):
-                    commandSocket.send(("500 Error.").encode('utf-8'))
-                else:                     
-                    os.remove(data)
-                    commandSocket.send(("257 " + os.getcwd() + "\\" + data + " deleted.").encode('utf-8'))
+                    log(userName + " deleted " + os.getcwd() + "/" + data + " directory at ")
+                    commandSocket.send(("250 " + os.getcwd() + "/" + data + " deleted.").encode('utf-8'))
 
             elif(command == "LIST"):
                 delim = " "
@@ -89,6 +180,8 @@ def serveClient(commandSocket, dataSocket):
                 commandSocket.send(("226 List transfer done.").encode('utf-8'))
 
             elif(command == "CWD"):
+                if(data == '@'):
+                    data = serverDirectory
                 if(os.path.isdir(data) == False):
                     commandSocket.send(("500 Error.").encode('utf-8'))
                 else:      
@@ -100,16 +193,28 @@ def serveClient(commandSocket, dataSocket):
                     dataSocket.send(("@").encode('utf-8'))                      
                     commandSocket.send(("500 Error.").encode('utf-8'))
                 else:
-                    file = open(data, 'rb')
-                    dataSocket.send(file.read())
-                    file.close()                      
-                    commandSocket.send(("226 Successful Download.").encode('utf-8'))
+                    if(not isAdmin):
+                        if(isFilePrivate(data)):
+                            dataSocket.send(("@").encode('utf-8')) 
+                            commandSocket.send(("550 File unavailable.").encode('utf-8'))
+                            continue
+                    if(getDownloadStatus(data, userName)):
+                        file = open(data, 'rb')
+                        dataSocket.send(file.read())
+                        file.close()       
+                        log(userName + " downloaded " + data + " file at ")
+                        commandSocket.send(("226 Successful Download.").encode('utf-8'))
+                    else:
+                        dataSocket.send(("@").encode('utf-8'))                      
+                        commandSocket.send(("425 Can't open data connection.").encode('utf-8'))
+                    handleMail(userName)
 
             elif(command == "QUIT"):
                 userLoggedIn = False
-                dataSocket.close()
-                commandSocket.close()
-                break
+                log(userName + " quit the system at ")
+                commandSocket.send("221 Successful Quit.".encode('utf-8'))
+                continue
+                # break
             else:
                 commandSocket.send("501 Syntax error in parameters or arguments.".encode('utf-8'))
          
@@ -121,19 +226,19 @@ def checkCommandValidation(commad, data):
     if(commad == "MKD" and data != "@"): return True
     if(commad == "MKD-i" and data != "@"): return True
     if(commad == "RMD" and data != "@"): return True
-    if(commad == "RMD-i" and data != "@"): return True
+    if(commad == "RMD-f" and data != "@"): return True
     if(commad == "LIST" and data == "@"): return True
-    if(commad == "CWD" and data != "@"): return True
+    if(commad == "CWD"): return True
     if(commad == "DL" and data != "@"): return True
     if(commad == "HELP" and data == "@"): return True
     if(commad == "QUIT" and data == "@"): return True
     return False
-
+#
 ###-------------main-----------### 
 config = {}
 with open('config.json', 'r') as file:
     config = json.load(file)
-
+logFile = createLogFile()
 commandPort = config['commandChannelPort']
 dataPort = config['dataChannelPort']
 
@@ -144,7 +249,7 @@ dataSocket = socket(AF_INET, SOCK_STREAM)
 dataSocket.bind(("",dataPort))
 dataSocket.listen(5)
 
-
+serverDirectory = os.getcwd()
 while True:
     clientCommandSocket,a = commandSocket.accept()
     clientDataSocket,a = dataSocket.accept()

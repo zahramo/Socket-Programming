@@ -18,7 +18,6 @@ while True:
     buffer = input().split()
     command = buffer[0]
     data = "@"
-
     ## command channel responses ##
     if (command == "USER" or command == "PASS" or
         command == "PWD" or command == "CWD" or
