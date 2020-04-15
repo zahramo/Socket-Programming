@@ -109,7 +109,8 @@ def sendEmail(emailAddr, username):
             serverMessages.append(mailSocket.recv(1024).decode('utf-8'))
             print("Server message after mail from request:" + serverMessages[3])
 
-            rcptTo = "RCPT TO:<moosavizahra67@yahoo.com>\r\n"
+            rcptTo = "RCPT TO:<" + emailAddr + ">\r\n"
+            print(emailAddr)
             mailSocket.send(rcptTo.encode('utf-8'))
             serverMessages.append(mailSocket.recv(1024).decode('utf-8'))
             print("Server message after recp to request: "+serverMessages[4])
@@ -139,6 +140,7 @@ def sendEmail(emailAddr, username):
 
 def serveClient(commandSocket, dataSocket):
     userLoggedIn = False
+    currentDirectory = os.getcwd()
     userName = ''
     passWord = ''
     while True:
@@ -194,71 +196,94 @@ def serveClient(commandSocket, dataSocket):
             continue
         else:
             if(command == "PWD"):
-                commandSocket.send(("257 " + os.getcwd()).encode('utf-8'))
+                commandSocket.send(("257 " + currentDirectory).encode('utf-8'))
 
             elif(command == "MKD"):
-                if(os.path.isdir(data)):
+                if(os.path.isdir(currentDirectory +"\\" + data)):
                     commandSocket.send(("500 Error.").encode('utf-8'))
                 else:                    
-                    os.mkdir(data)
-                    log(userName + " made " + os.getcwd() + "/" + data + " directory at ")
-                    commandSocket.send(("257 " + os.getcwd() + "/" + data + " created.").encode('utf-8'))
+                    os.mkdir(currentDirectory +"\\" + data)
+                    log(userName + " made " + currentDirectory + "\\" + data + " directory at ")
+                    commandSocket.send(("257 " + currentDirectory + "\\" + data + " created.").encode('utf-8'))
 
             elif(command == "MKD-i"):
-                if(os.path.isfile(data)):
+                if(os.path.isfile(currentDirectory +"\\" + data)):
                     commandSocket.send(("500 Error.").encode('utf-8'))
-                else:                     
-                    file = open(data, 'w')
+                else:     
+                    print(currentDirectory + "\\" + data)                
+                    file = open(currentDirectory + "\\" + data, 'w')
                     file.close()
-                    log(userName + " made " + data + " file at ")
-                    commandSocket.send(("257 " + data + " created.").encode('utf-8'))
+                    log(userName + " made " + currentDirectory +"\\" + data + " file at ")
+                    commandSocket.send(("257 " + currentDirectory +"\\" + data + " created.").encode('utf-8'))
 
             elif(command == "RMD"):
-                if(os.path.isfile(data) == False):
+                if(os.path.isfile(currentDirectory +"\\" + data) == False):
                     commandSocket.send(("500 Error.").encode('utf-8'))
                 else:       
                     if(not isAdmin):
                         if(isFilePrivate(data)):
                             commandSocket.send(("550 File unavailable.").encode('utf-8'))
                             continue
-                    os.remove(data)
-                    log(userName + " deleted " + data + " file at ")
-                    commandSocket.send(("257 " + data + " deleted.").encode('utf-8'))
+                    os.remove(currentDirectory +"\\" + data)
+                    log(userName + " deleted " + currentDirectory +"\\" + data + " file at ")
+                    commandSocket.send(("257 " + currentDirectory +"\\" + data + " deleted.").encode('utf-8'))
             elif(command == "RMD-f"):
-                if(os.path.isdir(data) == False):
+                if(os.path.isdir(currentDirectory +"\\" + data) == False):
                     commandSocket.send(("500 Error.").encode('utf-8'))
                 else:                 
-                    shutil.rmtree(data)
-                    log(userName + " deleted " + os.getcwd() + "/" + data + " directory at ")
-                    commandSocket.send(("250 " + os.getcwd() + "/" + data + " deleted.").encode('utf-8'))
+                    shutil.rmtree(currentDirectory +"\\" + data)
+                    log(userName + " deleted " + currentDirectory + "\\" + data + " directory at ")
+                    commandSocket.send(("250 " + currentDirectory + "\\" + data + " deleted.").encode('utf-8'))
 
             elif(command == "LIST"):
                 delim = " "
-                dataSocket.send((delim.join(os.listdir())).encode('utf-8'))  
+                if(delim.join(os.listdir(currentDirectory)) == ""):
+                    dataSocket.send(("@").encode('utf-8')) 
+                else:
+                    dataSocket.send((delim.join(os.listdir(currentDirectory))).encode('utf-8'))  
                 commandSocket.send(("226 List transfer done.").encode('utf-8'))
 
             elif(command == "CWD"):
                 if(data == '@'):
                     data = serverDirectory
-                if(os.path.isdir(data) == False):
-                    commandSocket.send(("500 Error.").encode('utf-8'))
-                else:      
-                    os.chdir(data)
-                    commandSocket.send(("250 Successful Change.").encode('utf-8'))   
+                    commandSocket.send(("250 Successful Change.").encode('utf-8'))             
+                elif(data == '..'):
+                    adrsDirs = currentDirectory.split("\\")
+                    if(len(adrsDirs)>1):
+                        cd = adrsDirs[0]
+                        for i in range(1,len(adrsDirs)-1):
+                            cd = cd + "\\" + adrsDirs[i]
+                    else:
+                        cd = ""
+                    print(cd)
+                    currentDirectory = cd
+                    commandSocket.send(("250 Successful Change.").encode('utf-8')) 
+                elif(os.path.isdir(currentDirectory +"\\" + data) == False):
+                        commandSocket.send(("500 Error.").encode('utf-8'))      
+                else:
+                    currentDirectory = currentDirectory + "\\" + data
+                    commandSocket.send(("250 Successful Change.").encode('utf-8'))  
+
 
             elif(command == "DL"):
-                if(os.path.isfile(data) == False):
+                if(os.path.isfile(currentDirectory + "\\" + data) == False):
                     dataSocket.send(("@").encode('utf-8'))                      
                     commandSocket.send(("500 Error.").encode('utf-8'))
                 else:
                     if(not isAdmin):
-                        if(isFilePrivate(data)):
+                        if(isFilePrivate(currentDirectory + "\\" + data)):
                             dataSocket.send(("@").encode('utf-8')) 
                             commandSocket.send(("550 File unavailable.").encode('utf-8'))
                             continue
-                    if(getDownloadStatus(data, userName)):
-                        file = open(data, 'rb')
-                        dataSocket.send(file.read())
+                    if(getDownloadStatus(currentDirectory + "\\" + data, userName)):
+                        file = open(currentDirectory + "\\" + data, 'rb')
+                        fileContent = file.read()
+                        if(fileContent.decode('utf-8') == ""):
+                            print(1)
+                            print(len(fileContent))
+                            dataSocket.send("#".encode('utf-8'))
+                        else:
+                            dataSocket.send(fileContent)
                         file.close()       
                         log(userName + " downloaded " + data + " file at ")
                         commandSocket.send(("226 Successful Download.").encode('utf-8'))
@@ -272,10 +297,8 @@ def serveClient(commandSocket, dataSocket):
                 log(userName + " quit the system at ")
                 commandSocket.send("221 Successful Quit.".encode('utf-8'))
                 continue
-                # break
             else:
                 commandSocket.send("501 Syntax error in parameters or arguments.".encode('utf-8'))
-         
         
 def checkCommandValidation(commad, data):
     if(commad == "USER" and data != "@"): return True

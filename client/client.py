@@ -16,7 +16,10 @@ dataSocket.connect(('127.0.0.1',dataPort))
 
 while True:
     buffer = input().split()
-    command = buffer[0]
+    if(len(buffer) > 0):
+        command = buffer[0]
+    else:
+        command = "@"
     data = "@"
     ## command channel responses ##
     if (command == "USER" or command == "PASS" or
@@ -46,7 +49,10 @@ while True:
         commandSocket.send(command.encode('utf-8'))
         dataSocket.send(data.encode('utf-8'))
         dataResponse = dataSocket.recv(10000)
-        if(dataResponse != "@" and data != "@"):
+        if(dataResponse.decode('utf-8') == "#"):
+            file = open(data, 'wb')
+            file.close()
+        elif(dataResponse.decode('utf-8') != "@" and data != "@"):
             file = open(data, 'wb')
             file.write(dataResponse)
             file.close()
