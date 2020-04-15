@@ -161,30 +161,29 @@ def serveClient(commandSocket, dataSocket):
             continue
 
         if(command == "USER"):
-            username = data
-
-            if(not doesUserNameExist(username)):
+            if(not doesUserNameExist(data)):
+                userName = ''
                 commandSocket.send("430 Invalid username or password.".encode('utf-8'))
                 continue
 
+            userName = data
             commandSocket.send("331 User name okay, need password.".encode('utf-8'))
-            userName = username
-            command = commandSocket.recv(10000).decode('utf-8')
-            if(command == "PASS"):
-                password = dataSocket.recv(10000).decode('utf-8')
-                if(not isPasswordCorrect(username, password)):
+            continue
+
+        if(command == "PASS"):
+            if(userName != ""):
+                if(not isPasswordCorrect(userName, data)):
                     commandSocket.send("430 Invalid username or password.".encode('utf-8'))
                     continue
                 userLoggedIn = True
-                passWord = password
+                passWord = data
                 isAdmin = isUserAdmin(userName)
                 log(userName + " entered the system at ")
                 commandSocket.send("230 User logged in, proceed.".encode('utf-8'))
                 continue
-
-        if(command == "PASS"):
-            commandSocket.send("503 Bad sequence of commands.".encode('utf-8'))
-            continue
+            else:                
+                commandSocket.send("503 Bad sequence of commands.".encode('utf-8'))
+                continue
 
         if(command == "HELP"):
             USER = "USER [name], Its argument is used to specify the user's string. It is used for user authentication.\n"
