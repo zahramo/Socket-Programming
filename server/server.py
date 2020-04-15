@@ -70,21 +70,13 @@ def getDownloadStatus(fileName, username):
             return True
 
 def handleMail(username):
-    print(username)
     accounting = config['accounting']
     threshold = int(accounting['threshold'])
     for user in accounting['users']:
-        print(user['user'])
         if(user['user'] == username):
-            print('same')
             if(user['alert'] == True):
-                print('alert')
                 userSize = int(user['size'])
-                print(userSize)
-                print(threshold)
                 if(userSize < threshold):
-                    print(userSize)
-                    print(threshold)
                     sendEmail(user['email'], user['user'])
 
 def sendEmail(emailAddr, username):

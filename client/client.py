@@ -34,7 +34,7 @@ while True:
         if(len(buffer) == 2):
             data = buffer[1]
         commandSocket.send(command.encode('utf-8'))
-        dataSocket.send(data.encode('utf-8'))
+        dataSocket.send(data.encode())
         dataResponse = dataSocket.recv(10000).decode('utf-8')
         commandResponse = commandSocket.recv(10000).decode('utf-8')
         print(commandResponse)
