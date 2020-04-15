@@ -4,6 +4,8 @@ import _thread
 import os
 import shutil
 from datetime import datetime
+import base64
+import time
 
 ###----function definitions----###
 
@@ -37,7 +39,7 @@ def log(msg):
         now = datetime.now()
         dt_string = now.strftime("%B %d, %Y %H:%M:%S")
         file = open(logFile, 'a')
-        file.write(msg + dt_string)
+        file.write(msg + dt_string + '\n')
         file.close()
 
 def doesUserNameExist(username):
@@ -68,15 +70,80 @@ def getDownloadStatus(fileName, username):
             return True
 
 def handleMail(username):
+    print(username)
     accounting = config['accounting']
     threshold = int(accounting['threshold'])
     for user in accounting['users']:
+        print(user['user'])
         if(user['user'] == username):
-            userSize = int(user['size'])
-            # if(userSize < threshold):
-                # sendEmail(user['email'])
+            print('same')
+            if(user['alert'] == True):
+                print('alert')
+                userSize = int(user['size'])
+                print(userSize)
+                print(threshold)
+                if(userSize < threshold):
+                    print(userSize)
+                    print(threshold)
+                    sendEmail(user['email'], user['user'])
 
+def sendEmail(emailAddr, username):
+    mailserver = ("mail.ut.ac.ir", 25)
+    mailSocket = socket(AF_INET, SOCK_STREAM)
+    mailSocket.connect(mailserver)
+    serverMessages = []
+    serverMessages.append(mailSocket.recv(1024).decode('utf-8'))
+    print("Server message after connection request:" + serverMessages[0])
+    messageStatus = serverMessages[0][:3]
+    if messageStatus != '220':
+        print("Can't connect to mail server")
+    else :
+        helloCommand = 'EHLO mail.ut.ac.ir\r\n'
+        mailSocket.send(helloCommand.encode('utf-8'))
+        serverMessages.append(mailSocket.recv(1024).decode('utf-8'))
+        print("Message after EHLO command:" + serverMessages[1])
+        messageStatus = serverMessages[1][:3]
+        if messageStatus != '250':
+            print('Server does not say hello back.')
+        else:
+            authenticationData = b'AHphaHJhLm1vb3NhdmkubW8AU3phaHJhbW85OQ=='
+            authMsg = "AUTH PLAIN ".encode('utf-8')+authenticationData+"\r\n".encode('utf-8')
+            mailSocket.send(authMsg)
+            serverMessages.append(mailSocket.recv(1024).decode('utf-8'))
+            print("Server message after auth request:" + serverMessages[2])
 
+            mailFrom = "MAIL FROM:<zahra.moosavi.mo@ut.ac.ir>\r\n"
+            mailSocket.send(mailFrom.encode('utf-8'))
+            serverMessages.append(mailSocket.recv(1024).decode('utf-8'))
+            print("Server message after mail from request:" + serverMessages[3])
+
+            rcptTo = "RCPT TO:<moosavizahra67@yahoo.com>\r\n"
+            mailSocket.send(rcptTo.encode('utf-8'))
+            serverMessages.append(mailSocket.recv(1024).decode('utf-8'))
+            print("Server message after recp to request: "+serverMessages[4])
+
+            data = "DATA\r\n"
+            mailSocket.send(data.encode('utf-8'))
+            serverMessages.append(mailSocket.recv(1024).decode('utf-8'))
+            print("Server message after DATA request: " + serverMessages[5])
+
+            msg = "\r\n Hello " + username + "! please check your account. your account volume is less than threshold."
+            endmsg = "\r\n.\r\n"
+            subject = "Subject: Not enough volume\r\n\r\n" 
+            mailSocket.send(subject.encode('utf-8'))
+            date = time.strftime("%a, %d %b %Y %H:%M:%S +0000", time.gmtime())
+            date = date + "\r\n\r\n"
+            mailSocket.send(date.encode('utf-8'))
+            mailSocket.send(msg.encode('utf-8'))
+            mailSocket.send(endmsg.encode('utf-8'))
+            serverMessages.append(mailSocket.recv(1024).decode('utf-8'))
+            print("Server message after sending message body:"+serverMessages[6])
+            log("An alert mail sent to " + username)
+            quit = "QUIT\r\n"
+            mailSocket.send(quit.encode('utf-8'))
+            serverMessages.append(mailSocket.recv(1024).decode('utf-8'))
+            print("Server message after quit:"+serverMessages[7])
+            mailSocket.close()
 
 def serveClient(commandSocket, dataSocket):
     userLoggedIn = False
