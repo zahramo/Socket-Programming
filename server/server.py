@@ -27,10 +27,11 @@ def isUserAdmin(username):
     else:
         return True
 
-def isFilePrivate(filename):
+def isFilePrivate(filename, currentDirectory):
     authorization = config['authorization']
     for name in authorization['files']:
-        if(name == filename or name == "./" +  filename):
+        # if(name == filename or name == "./" +  filename or name == currentDirectory + '/' + filename):
+        if(os.path.samefile(currentDirectory + '/' + filename, serverDirectory + '/' + name)):
             return True
     return False
 
@@ -144,6 +145,7 @@ def serveClient(commandSocket, dataSocket):
     userName = ''
     passWord = ''
     while True:
+        currentDirectory = os.path.normpath(currentDirectory)
         command = commandSocket.recv(10000).decode('utf-8')
         data = dataSocket.recv(10000).decode('utf-8')
         print(command, data)
@@ -210,7 +212,7 @@ def serveClient(commandSocket, dataSocket):
                 if(os.path.isfile(currentDirectory +"/" + data)):
                     commandSocket.send(("500 Error.").encode('utf-8'))
                 else:               
-                    file = open(data, 'w')
+                    file = open(currentDirectory +"/"+data, 'w')
                     file.close()
                     log(userName + " made " + data + " file at ")
                     commandSocket.send(("257 " +  data + " created.").encode('utf-8'))
@@ -220,10 +222,10 @@ def serveClient(commandSocket, dataSocket):
                     commandSocket.send(("500 Error.").encode('utf-8'))
                 else:       
                     if(not isAdmin):
-                        if(isFilePrivate(data)):
+                        if(isFilePrivate(data, currentDirectory)):
                             commandSocket.send(("550 File unavailable.").encode('utf-8'))
                             continue
-                    os.remove(data)
+                    os.remove(currentDirectory +"/"+data)
                     log(userName + " deleted " + data + " file at ")
                     commandSocket.send(("257 " + data + " deleted.").encode('utf-8'))
             elif(command == "RMD-f"):
@@ -271,7 +273,7 @@ def serveClient(commandSocket, dataSocket):
                     commandSocket.send(("500 Error.").encode('utf-8'))
                 else:
                     if(not isAdmin):
-                        if(isFilePrivate(data)):
+                        if(isFilePrivate(data, currentDirectory)):
                             dataSocket.send(("@").encode('utf-8')) 
                             commandSocket.send(("550 File unavailable.").encode('utf-8'))
                             continue
