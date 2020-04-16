@@ -30,7 +30,7 @@ def isUserAdmin(username):
 def isFilePrivate(filename):
     authorization = config['authorization']
     for name in authorization['files']:
-        if(name == filename):
+        if(name == filename or name == "./" +  filename):
             return True
     return False
 
@@ -199,41 +199,40 @@ def serveClient(commandSocket, dataSocket):
                 commandSocket.send(("257 " + currentDirectory).encode('utf-8'))
 
             elif(command == "MKD"):
-                if(os.path.isdir(currentDirectory +"\\" + data)):
+                if(os.path.isdir(currentDirectory +"/" + data)):
                     commandSocket.send(("500 Error.").encode('utf-8'))
                 else:                    
-                    os.mkdir(currentDirectory +"\\" + data)
-                    log(userName + " made " + currentDirectory + "\\" + data + " directory at ")
-                    commandSocket.send(("257 " + currentDirectory + "\\" + data + " created.").encode('utf-8'))
+                    os.mkdir(currentDirectory +"/" + data)
+                    log(userName + " made " + currentDirectory + "/" + data + " directory at ")
+                    commandSocket.send(("257 " + currentDirectory + "/" + data + " created.").encode('utf-8'))
 
             elif(command == "MKD-i"):
-                if(os.path.isfile(currentDirectory +"\\" + data)):
+                if(os.path.isfile(currentDirectory +"/" + data)):
                     commandSocket.send(("500 Error.").encode('utf-8'))
-                else:     
-                    print(currentDirectory + "\\" + data)                
-                    file = open(currentDirectory + "\\" + data, 'w')
+                else:               
+                    file = open(data, 'w')
                     file.close()
-                    log(userName + " made " + currentDirectory +"\\" + data + " file at ")
-                    commandSocket.send(("257 " + currentDirectory +"\\" + data + " created.").encode('utf-8'))
+                    log(userName + " made " + data + " file at ")
+                    commandSocket.send(("257 " +  data + " created.").encode('utf-8'))
 
             elif(command == "RMD"):
-                if(os.path.isfile(currentDirectory +"\\" + data) == False):
+                if(os.path.isfile(currentDirectory +"/" + data) == False):
                     commandSocket.send(("500 Error.").encode('utf-8'))
                 else:       
                     if(not isAdmin):
                         if(isFilePrivate(data)):
                             commandSocket.send(("550 File unavailable.").encode('utf-8'))
                             continue
-                    os.remove(currentDirectory +"\\" + data)
-                    log(userName + " deleted " + currentDirectory +"\\" + data + " file at ")
-                    commandSocket.send(("257 " + currentDirectory +"\\" + data + " deleted.").encode('utf-8'))
+                    os.remove(data)
+                    log(userName + " deleted " + data + " file at ")
+                    commandSocket.send(("257 " + data + " deleted.").encode('utf-8'))
             elif(command == "RMD-f"):
-                if(os.path.isdir(currentDirectory +"\\" + data) == False):
+                if(os.path.isdir(currentDirectory +"/" + data) == False):
                     commandSocket.send(("500 Error.").encode('utf-8'))
                 else:                 
-                    shutil.rmtree(currentDirectory +"\\" + data)
-                    log(userName + " deleted " + currentDirectory + "\\" + data + " directory at ")
-                    commandSocket.send(("250 " + currentDirectory + "\\" + data + " deleted.").encode('utf-8'))
+                    shutil.rmtree(currentDirectory +"/" + data)
+                    log(userName + " deleted " + currentDirectory + "/" + data + " directory at ")
+                    commandSocket.send(("250 " + currentDirectory + "/" + data + " deleted.").encode('utf-8'))
 
             elif(command == "LIST"):
                 delim = " "
@@ -246,37 +245,38 @@ def serveClient(commandSocket, dataSocket):
             elif(command == "CWD"):
                 if(data == '@'):
                     data = serverDirectory
+                    currentDirectory = data
                     commandSocket.send(("250 Successful Change.").encode('utf-8'))             
                 elif(data == '..'):
-                    adrsDirs = currentDirectory.split("\\")
+                    adrsDirs = currentDirectory.split("/")
                     if(len(adrsDirs)>1):
                         cd = adrsDirs[0]
                         for i in range(1,len(adrsDirs)-1):
-                            cd = cd + "\\" + adrsDirs[i]
+                            cd = cd + "/" + adrsDirs[i]
                     else:
                         cd = ""
                     print(cd)
                     currentDirectory = cd
                     commandSocket.send(("250 Successful Change.").encode('utf-8')) 
-                elif(os.path.isdir(currentDirectory +"\\" + data) == False):
+                elif(os.path.isdir(currentDirectory +"/" + data) == False):
                         commandSocket.send(("500 Error.").encode('utf-8'))      
                 else:
-                    currentDirectory = currentDirectory + "\\" + data
+                    currentDirectory = currentDirectory + "/" + data
                     commandSocket.send(("250 Successful Change.").encode('utf-8'))  
 
 
             elif(command == "DL"):
-                if(os.path.isfile(currentDirectory + "\\" + data) == False):
+                if(os.path.isfile(currentDirectory + "/" + data) == False):
                     dataSocket.send(("@").encode('utf-8'))                      
                     commandSocket.send(("500 Error.").encode('utf-8'))
                 else:
                     if(not isAdmin):
-                        if(isFilePrivate(currentDirectory + "\\" + data)):
+                        if(isFilePrivate(data)):
                             dataSocket.send(("@").encode('utf-8')) 
                             commandSocket.send(("550 File unavailable.").encode('utf-8'))
                             continue
-                    if(getDownloadStatus(currentDirectory + "\\" + data, userName)):
-                        file = open(currentDirectory + "\\" + data, 'rb')
+                    if(getDownloadStatus(currentDirectory + "/" + data, userName)):
+                        file = open(currentDirectory + "/" + data, 'rb')
                         fileContent = file.read()
                         if(fileContent.decode('utf-8') == ""):
                             print(1)
